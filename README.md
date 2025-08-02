@@ -2,6 +2,122 @@
 
 This project contains a complete, production-ready AWS environment infrastructure defined using Terragrunt and Terraform modules from the Terraform Registry.
 
+## 🗺️ Resource Map
+
+```mermaid
+graph TB
+    subgraph Network Infrastructure
+        VPC[VPC] --> SUBNETS[Public & Private Subnets]
+        SUBNETS --> NAT[NAT Gateways]
+        SUBNETS --> IGW[Internet Gateway]
+        SG[Security Groups] --> SUBNETS
+    end
+
+    subgraph Load Balancing
+        ALB[Application Load Balancer]
+        TG[Target Groups]
+        WAF[Web Application Firewall]
+        ALB --> TG
+        WAF --> ALB
+    end
+
+    subgraph Compute Layer
+        ASG[Auto Scaling Group]
+        EC2[EC2 Instances]
+        ASG --> EC2
+        TG --> ASG
+    end
+
+    subgraph Data Layer
+        RDS[RDS PostgreSQL]
+        S3[S3 Buckets]
+        S3LOGS[S3 Logs Bucket]
+    end
+
+    subgraph Security
+        IAM[IAM Roles]
+        INSP[Inspector]
+        MACIE[Macie]
+        KMS[KMS Keys]
+    end
+
+    subgraph Monitoring
+        CW[CloudWatch]
+        LOGS[CloudWatch Logs]
+        METRICS[Custom Metrics]
+    end
+
+    ALB --> EC2
+    EC2 --> RDS
+    EC2 --> S3
+    S3 --> S3LOGS
+    EC2 --> CW
+    RDS --> CW
+    KMS --> RDS
+    KMS --> S3
+```
+
+### Resource Configuration Matrix
+
+| Component | Dev | Staging | Prod |
+|-----------|-----|---------|------|
+| **VPC Configuration** |
+| CIDR Block | 10.0.0.0/16 | 172.16.0.0/16 | 192.168.0.0/16 |
+| Availability Zones | 3 | 3 | 3 |
+| NAT Gateways | 1 | 2 | 3 |
+| VPC Flow Logs | Basic | Enhanced | Full |
+| **Compute Resources** |
+| Instance Type | t3.small | t3.large | m5.xlarge |
+| Auto Scaling Min | 1 | 2 | 3 |
+| Auto Scaling Max | 3 | 6 | 10 |
+| **Database** |
+| RDS Instance Class | db.t3.small | db.t3.large | db.r5.2xlarge |
+| Multi-AZ | No | Yes | Yes |
+| Backup Retention | 7 days | 14 days | 30 days |
+| Performance Insights | 7 days | 14 days | 731 days |
+| **Storage** |
+| S3 Versioning | Enabled | Enabled | Enabled |
+| S3 Lifecycle Rules | 30 days | 60 days | 90 days |
+| S3 Replication | No | No | Yes |
+| **Security** |
+| WAF Rules | Basic | Enhanced | Advanced |
+| SSL Policy | TLS-1-2 | TLS-1-2 | TLS-1-2-2021 |
+| Network ACLs | Basic | Strict | Very Strict |
+| GuardDuty | Enabled | Enabled | Enabled |
+| **Monitoring** |
+| CloudWatch Retention | 30 days | 90 days | 365 days |
+| Metric Resolution | 5 min | 1 min | 1 min |
+| Detailed Monitoring | No | Yes | Yes |
+
+### Regional Deployment Status
+
+| Region | Dev | Staging | Prod |
+|--------|-----|---------|------|
+| eu-west-1 | ✅ | ✅ | ✅ |
+| eu-west-2 | ✅ | 🚫 | 🚫 |
+
+### Environment-Specific Features
+
+#### Development (Dev)
+- Cost-optimized infrastructure
+- Basic monitoring and logging
+- Simplified security rules
+- Single NAT Gateway
+
+#### Staging
+- Production-like configuration
+- Enhanced monitoring
+- Strict security rules
+- Dual NAT Gateways
+
+#### Production (Prod)
+- High-availability configuration
+- Comprehensive monitoring
+- Maximum security controls
+- Triple NAT Gateways
+- Cross-region backup
+- Enhanced WAF protection
+
 ## 🏗️ Architecture Overview
 
 The environment is designed as a multi-tier application with the following components:
@@ -67,7 +183,7 @@ terragrunt-olechka/
 ### Prerequisites
 
 1. **AWS CLI** configured with appropriate credentials
-2. **Terragrunt** installed (version 0.54.0 or later)
+2. **Terragrunt** installed (version 0.84.0)
 3. **Terraform** installed (version 1.13.0)
 4. **AWS Account** with appropriate permissions
 
