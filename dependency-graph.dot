@@ -1,0 +1,23 @@
+digraph G {
+  rankdir=TB;
+  node [shape=box, style=filled, fillcolor=lightblue];
+  edge [color=gray];
+  "" [label="\n"];
+  "eu-west-1" [label="eu-west-1\n"];
+  "eu-west-2" [label="eu-west-2\n"];
+  "s3" [label="s3\ntfr://terraform-aws-modules/s3-bucket/aws//?version=4.1.2"];
+  "s3-logs" [label="s3-logs\ntfr://terraform-aws-modules/s3-bucket/aws//?version=4.1.2"];
+  "inspector" [label="inspector\ntfr://terraform-aws-modules/inspector/aws//?version=1.0.0"];
+  "macie" [label="macie\ntfr://terraform-aws-modules/macie/aws//?version=1.0.0"];
+  "elb" [label="elb\ntfr://terraform-aws-modules/alb/aws//?version=9.9.2"];
+  "securitygroup" [label="securitygroup\ntfr://terraform-aws-modules/security-group/aws//?version=5.1.2"];
+  "vpc" [label="vpc\ntfr://terraform-aws-modules/vpc/aws//?version=5.8.1"];
+  "role" [label="role\ntfr://terraform-aws-modules/iam/aws//modules/iam-role?version=5.30.0"];
+  "rds" [label="rds\ntfr://terraform-aws-modules/rds/aws//?version=6.6.0"];
+  "ec2" [label="ec2\ntfr://terraform-aws-modules/ec2-instance/aws//?version=5.6.1"];
+  "waf" [label="waf\ntfr://terraform-aws-modules/waf/aws//?version=1.0.0"];
+  "securitygroup" -> "rds";
+  "securitygroup" -> "ec2";
+  "vpc" -> "rds";
+  "vpc" -> "ec2";
+}
