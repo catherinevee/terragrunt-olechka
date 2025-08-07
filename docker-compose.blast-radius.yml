@@ -1,0 +1,78 @@
+version: '3.8'
+
+services:
+  blast-radius:
+    image: 28mm/blast-radius:latest
+    container_name: terragrunt-olechka-blast-radius
+    ports:
+      - "5000:5000"
+    volumes:
+      - .:/data:ro
+    security_opt:
+      - apparmor:unconfined
+    cap_add:
+      - SYS_ADMIN
+    environment:
+      - PYTHONUNBUFFERED=1
+    command: ["--serve", "/data/eu-west-1"]
+    restart: unless-stopped
+    networks:
+      - blast-radius-network
+
+  blast-radius-dev:
+    image: 28mm/blast-radius:latest
+    container_name: terragrunt-olechka-blast-radius-dev
+    ports:
+      - "5001:5000"
+    volumes:
+      - .:/data:ro
+    security_opt:
+      - apparmor:unconfined
+    cap_add:
+      - SYS_ADMIN
+    environment:
+      - PYTHONUNBUFFERED=1
+    command: ["--serve", "/data/dev"]
+    restart: unless-stopped
+    networks:
+      - blast-radius-network
+
+  blast-radius-staging:
+    image: 28mm/blast-radius:latest
+    container_name: terragrunt-olechka-blast-radius-staging
+    ports:
+      - "5002:5000"
+    volumes:
+      - .:/data:ro
+    security_opt:
+      - apparmor:unconfined
+    cap_add:
+      - SYS_ADMIN
+    environment:
+      - PYTHONUNBUFFERED=1
+    command: ["--serve", "/data/staging"]
+    restart: unless-stopped
+    networks:
+      - blast-radius-network
+
+  blast-radius-prod:
+    image: 28mm/blast-radius:latest
+    container_name: terragrunt-olechka-blast-radius-prod
+    ports:
+      - "5003:5000"
+    volumes:
+      - .:/data:ro
+    security_opt:
+      - apparmor:unconfined
+    cap_add:
+      - SYS_ADMIN
+    environment:
+      - PYTHONUNBUFFERED=1
+    command: ["--serve", "/data/prod"]
+    restart: unless-stopped
+    networks:
+      - blast-radius-network
+
+networks:
+  blast-radius-network:
+    driver: bridge 
