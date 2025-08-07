@@ -7,12 +7,7 @@
 !example.tfvars
 !*.tfvars.example
 
-# Blast Radius generated files
-diagrams/
-*.html
-*.svg
-*.png
-!index.html
+
 
 # Python
 __pycache__/
