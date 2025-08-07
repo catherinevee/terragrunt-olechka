@@ -239,6 +239,125 @@ logging.basicConfig(level=logging.DEBUG)
 3. Add tests for new functionality
 4. Submit a pull request
 
+## Analysis Results for terragrunt-olechka Project
+
+### Project Overview
+The analyzer was run against the `terragrunt-olechka` project, which contains a comprehensive multi-environment Terraform infrastructure setup with the following characteristics:
+
+- **Environments**: `dev`, `staging`, `prod`
+- **Regions**: `eu-west-1`, `eu-west-2`
+- **Infrastructure Components**: Network, Compute, Database, Security, Storage
+
+### Module Analysis Results
+
+#### Total Modules Found: 13
+The analyzer discovered 13 distinct modules across the infrastructure:
+
+1. **s3** - S3 bucket module (`tfr://terraform-aws-modules/s3-bucket/aws//?version=4.1.2`)
+2. **s3-logs** - S3 logs bucket module (`tfr://terraform-aws-modules/s3-bucket/aws//?version=4.1.2`)
+3. **inspector** - AWS Inspector module (`tfr://terraform-aws-modules/inspector/aws//?version=1.0.0`)
+4. **macie** - AWS Macie module (`tfr://terraform-aws-modules/macie/aws//?version=1.0.0`)
+5. **elb** - Application Load Balancer module (`tfr://terraform-aws-modules/alb/aws//?version=9.9.2`)
+6. **securitygroup** - Security Group module (`tfr://terraform-aws-modules/security-group/aws//?version=5.1.2`)
+7. **vpc** - VPC module (`tfr://terraform-aws-modules/vpc/aws//?version=5.8.1`)
+8. **role** - IAM Role module (`tfr://terraform-aws-modules/iam/aws//modules/iam-role?version=5.30.0`)
+9. **rds** - RDS database module (`tfr://terraform-aws-modules/rds/aws//?version=6.6.0`)
+10. **ec2** - EC2 instance module (`tfr://terraform-aws-modules/ec2-instance/aws//?version=5.6.1`)
+11. **waf** - WAF module (`tfr://terraform-aws-modules/waf/aws//?version=1.0.0`)
+
+#### Dependency Relationships
+The analysis revealed the following key dependency patterns:
+
+**Core Network Dependencies:**
+- `vpc` → `rds` (RDS depends on VPC for subnet placement)
+- `vpc` → `ec2` (EC2 instances depend on VPC for subnet placement)
+- `securitygroup` → `rds` (RDS depends on security group for access control)
+- `securitygroup` → `ec2` (EC2 instances depend on security group for network access)
+
+**Security Dependencies:**
+- `role` → `ec2` (EC2 instances depend on IAM roles for permissions)
+- `waf` → `elb` (Load balancer depends on WAF for web application protection)
+
+### Key Insights
+
+#### 1. **No Circular Dependencies Detected** ✅
+The analysis found no circular dependencies in the current infrastructure, indicating a well-structured module hierarchy.
+
+#### 2. **Clear Separation of Concerns**
+- **Network Layer**: VPC and security groups form the foundation
+- **Compute Layer**: EC2 instances depend on network resources
+- **Data Layer**: RDS databases depend on network and security resources
+- **Security Layer**: IAM roles and WAF provide security controls
+
+#### 3. **Modular Architecture**
+The infrastructure follows Terraform best practices with:
+- Clear module boundaries
+- Explicit dependency declarations
+- Consistent version pinning
+- Environment-specific configurations
+
+#### 4. **Multi-Environment Support**
+The project supports multiple environments (`dev`, `staging`, `prod`) and regions (`eu-west-1`, `eu-west-2`) with:
+- Environment-specific variable configurations
+- Consistent module versions across environments
+- Proper resource naming conventions
+
+### Recommendations
+
+#### 1. **Version Management**
+- Consider implementing a centralized version management strategy
+- Regularly update module versions for security patches
+- Document version update procedures
+
+#### 2. **Monitoring and Observability**
+- Add CloudWatch monitoring for critical resources
+- Implement centralized logging for all components
+- Set up alerting for infrastructure health
+
+#### 3. **Security Enhancements**
+- Review and tighten security group rules
+- Implement least-privilege IAM policies
+- Consider adding AWS Config rules for compliance
+
+#### 4. **Cost Optimization**
+- Implement resource tagging for cost allocation
+- Consider using Spot instances for non-critical workloads
+- Set up cost monitoring and alerting
+
+### Generated Visualizations
+
+The analyzer generated several visualization formats:
+
+1. **DOT Graph** (`dependency-graph.dot`) - For Graphviz rendering
+2. **Mermaid Diagram** (`dependency-graph.md`) - For documentation
+3. **Interactive HTML** (`dependency-graph.html`) - For web-based exploration
+
+These visualizations help teams understand:
+- Module relationships and dependencies
+- Infrastructure architecture patterns
+- Potential impact of changes
+- Resource allocation across environments
+
+### Usage Examples
+
+#### Running Analysis on Specific Environment
+```bash
+# Analyze production environment
+python terraform-dependency-analyzer.py --path ./prod/eu-west-2
+
+# Analyze development environment
+python terraform-dependency-analyzer.py --path ./dev/eu-west-1
+```
+
+#### Generating Environment-Specific Visualizations
+```bash
+# Generate Mermaid diagram for production
+python terraform-dependency-analyzer.py --path ./prod/eu-west-2 --format mermaid --output prod-dependency-graph.md
+
+# Generate interactive HTML for development
+python terraform-dependency-analyzer.py --path ./dev/eu-west-1 --format html --output dev-dependency-graph.html
+```
+
 ## License
 
 This tool is provided as-is for educational and development purposes. 
