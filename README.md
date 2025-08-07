@@ -186,6 +186,8 @@ terragrunt-olechka/
 2. **Terragrunt** installed (version 0.84.0)
 3. **Terraform** installed (version 1.13.0)
 4. **AWS Account** with appropriate permissions
+5. **Python 3.7+** (for Blast Radius integration)
+6. **Docker** (optional, for containerized Blast Radius)
 
 ### Configuration
 
@@ -334,12 +336,47 @@ terragrunt run-all destroy
 
 **Warning**: This will permanently delete all resources and data.
 
+## Blast Radius Integration
+
+This repository includes integration with [Blast Radius](https://github.com/28mm/blast-radius) for interactive Terraform dependency visualization.
+
+### Quick Start with Blast Radius
+
+```bash
+# Install dependencies
+pip install -r requirements.txt
+
+# Generate interactive diagrams
+make blast-export
+
+# Serve interactive diagrams
+make blast-serve
+
+# Use Docker (no local installation required)
+make blast-docker-all
+```
+
+### Features
+
+- **Interactive Visualizations**: Zoom, pan, search, and filter dependency graphs
+- **Multiple Environments**: Support for dev, staging, prod, and eu-west-1 environments
+- **Multiple Formats**: HTML, SVG, and PNG output formats
+- **Docker Support**: Run without local dependencies
+- **Web Interface**: Modern, responsive web interface
+
+### Documentation
+
+For detailed information about the Blast Radius integration, see:
+- [Blast Radius Integration Guide](BLAST_RADIUS_INTEGRATION.md)
+- [Interactive Diagrams](diagrams/) (generated after running `make blast-export`)
+
 ## Additional Resources
 
 - [Terragrunt Documentation](https://terragrunt.gruntwork.io/)
 - [Terraform AWS Provider](https://registry.terraform.io/providers/hashicorp/aws/latest/docs)
 - [AWS Well-Architected Framework](https://aws.amazon.com/architecture/well-architected/)
 - [AWS Security Best Practices](https://aws.amazon.com/security/security-learning/)
+- [Blast Radius Documentation](https://github.com/28mm/blast-radius)
 
 ## Contributing
 
