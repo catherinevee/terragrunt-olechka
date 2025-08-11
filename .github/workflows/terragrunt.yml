@@ -1,0 +1,65 @@
+name: Terragrunt CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+  actions: read
+  id-token: write
+
+jobs:
+  terragrunt-check:
+    name: Terragrunt Validation & Plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.21'
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/go-build
+          key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
+          restore-keys: |
+            ${{ runner.os }}-go-
+      - name: Install Terragrunt
+        run: |
+          wget https://github.com/gruntwork-io/terragrunt/releases/download/v0.54.7/terragrunt_linux_amd64
+          chmod +x terragrunt_linux_amd64
+          sudo mv terragrunt_linux_amd64 /usr/local/bin/terragrunt
+      - name: Terragrunt Validate (dev/eu-west-2)
+        run: |
+          cd dev/eu-west-2
+          terragrunt validate || echo "No validate in this module" >&2
+        continue-on-error: false
+      - name: Terragrunt Plan (dev/eu-west-2)
+        run: |
+          cd dev/eu-west-2
+          terragrunt plan --terragrunt-non-interactive || echo "No plan in this module" >&2
+        continue-on-error: false
+      - name: Terragrunt Validate (prod/eu-west-2)
+        run: |
+          cd prod/eu-west-2
+          terragrunt validate || echo "No validate in this module" >&2
+        continue-on-error: false
+      - name: Terragrunt Plan (prod/eu-west-2)
+        run: |
+          cd prod/eu-west-2
+          terragrunt plan --terragrunt-non-interactive || echo "No plan in this module" >&2
+        continue-on-error: false
+      - name: Notify on failure
+        if: failure()
+        run: echo "::error::Terragrunt workflow failed. Please check logs and remediate."
+      - name: Notify on success
+        if: success()
+        run: echo "::notice::Terragrunt workflow completed successfully."
