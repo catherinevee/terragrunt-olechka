@@ -5,8 +5,8 @@
 
 set -e
 
-echo "🚀 Starting Olechka AWS Environment Deployment"
-echo "=============================================="
+echo "Starting Olechka AWS Environment Deployment"
+echo "=========================================="
 
 # Colors for output
 RED='\033[0;31m'
@@ -79,14 +79,14 @@ deploy_infrastructure() {
 show_summary() {
     print_status "Deployment Summary:"
     echo "===================="
-    echo "✅ VPC with public and private subnets"
-    echo "✅ Security groups configured"
-    echo "✅ EC2 instance with Apache web server"
-    echo "✅ RDS PostgreSQL database"
-    echo "✅ S3 buckets for data and logs"
-    echo "✅ Application Load Balancer"
-    echo "✅ IAM roles and policies"
-    echo "✅ WAF, Inspector, and Macie security services"
+    echo "VPC with public and private subnets"
+    echo "Security groups configured"
+    echo "EC2 instance with Apache web server"
+    echo "RDS PostgreSQL database"
+    echo "S3 buckets for data and logs"
+    echo "Application Load Balancer"
+    echo "IAM roles and policies"
+    echo "WAF, Inspector, and Macie security services"
     echo ""
     print_status "Your AWS environment is now ready!"
 }

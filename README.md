@@ -1,8 +1,8 @@
 # Olechka AWS Environment - Terragrunt Project
 
-This project contains a complete, production-ready AWS environment infrastructure defined using Terragrunt and Terraform modules from the Terraform Registry.
+This project contains a complete AWS environment infrastructure defined using Terragrunt and Terraform modules from the Terraform Registry.
 
-## 🗺️ Resource Map
+## Resource Map
 
 ```mermaid
 graph TB
@@ -93,8 +93,8 @@ graph TB
 
 | Region | Dev | Staging | Prod |
 |--------|-----|---------|------|
-| eu-west-1 | ✅ | ✅ | ✅ |
-| eu-west-2 | ✅ | 🚫 | 🚫 |
+| eu-west-1 | Deployed | Deployed | Deployed |
+| eu-west-2 | Not deployed | Not deployed | Not deployed |
 
 ### Environment-Specific Features
 
@@ -118,7 +118,7 @@ graph TB
 - Cross-region backup
 - Enhanced WAF protection
 
-## 🏗️ Architecture Overview
+## Architecture Overview
 
 The environment is designed as a multi-tier application with the following components:
 
@@ -145,7 +145,7 @@ The environment is designed as a multi-tier application with the following compo
 - **IAM Roles** with least privilege access
 - **Encryption** at rest and in transit
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 terragrunt-olechka/
@@ -178,7 +178,7 @@ terragrunt-olechka/
 │       └── macie/                       # Data discovery and protection
 ```
 
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
 
@@ -186,6 +186,8 @@ terragrunt-olechka/
 2. **Terragrunt** installed (version 0.84.0)
 3. **Terraform** installed (version 1.13.0)
 4. **AWS Account** with appropriate permissions
+5. **Python 3.7+** (for Blast Radius integration)
+6. **Docker** (optional, for containerized Blast Radius)
 
 ### Configuration
 
@@ -229,7 +231,7 @@ cd ../compute/ec2
 terragrunt apply
 ```
 
-## 🔧 Configuration Details
+## Configuration Details
 
 ### Terraform Modules Used
 
@@ -259,7 +261,7 @@ All modules are sourced from the Terraform Registry for reliability and maintena
 - **Web Protection**: WAF with AWS managed security rules
 - **Security Monitoring**: Continuous security assessment with Inspector and Macie
 
-## 📊 Monitoring and Logging
+## Monitoring and Logging
 
 ### CloudWatch Integration
 - **Metrics**: Automatic collection for all AWS services
@@ -274,7 +276,7 @@ All modules are sourced from the Terraform Registry for reliability and maintena
 - **Traffic Analysis**: Detailed request logs for load balancer
 - **Security Monitoring**: Detection of suspicious traffic patterns
 
-## 💰 Cost Optimization
+## Cost Optimization
 
 ### Resource Sizing
 - **t3.micro instances**: Cost-effective for development and testing
@@ -287,7 +289,7 @@ All modules are sourced from the Terraform Registry for reliability and maintena
 - **RDS Multi-AZ**: Enable multi-AZ for high availability
 - **CloudFront**: Add CDN for global content delivery
 
-## 🔍 Troubleshooting
+## Troubleshooting
 
 ### Common Issues
 
@@ -323,7 +325,7 @@ aws sts get-caller-identity
 aws logs describe-log-groups
 ```
 
-## 🧹 Cleanup
+## Cleanup
 
 To destroy the entire environment:
 
@@ -332,16 +334,51 @@ cd eu-west-1
 terragrunt run-all destroy
 ```
 
-**⚠️ Warning**: This will permanently delete all resources and data.
+**Warning**: This will permanently delete all resources and data.
 
-## 📚 Additional Resources
+## Blast Radius Integration
+
+This repository includes integration with [Blast Radius](https://github.com/28mm/blast-radius) for interactive Terraform dependency visualization.
+
+### Quick Start with Blast Radius
+
+```bash
+# Install dependencies
+pip install -r requirements.txt
+
+# Generate interactive diagrams
+make blast-export
+
+# Serve interactive diagrams
+make blast-serve
+
+# Use Docker (no local installation required)
+make blast-docker-all
+```
+
+### Features
+
+- **Interactive Visualizations**: Zoom, pan, search, and filter dependency graphs
+- **Multiple Environments**: Support for dev, staging, prod, and eu-west-1 environments
+- **Multiple Formats**: HTML, SVG, and PNG output formats
+- **Docker Support**: Run without local dependencies
+- **Web Interface**: Modern, responsive web interface
+
+### Documentation
+
+For detailed information about the Blast Radius integration, see:
+- [Blast Radius Integration Guide](BLAST_RADIUS_INTEGRATION.md)
+- [Interactive Diagrams](diagrams/) (generated after running `make blast-export`)
+
+## Additional Resources
 
 - [Terragrunt Documentation](https://terragrunt.gruntwork.io/)
 - [Terraform AWS Provider](https://registry.terraform.io/providers/hashicorp/aws/latest/docs)
 - [AWS Well-Architected Framework](https://aws.amazon.com/architecture/well-architected/)
 - [AWS Security Best Practices](https://aws.amazon.com/security/security-learning/)
+- [Blast Radius Documentation](https://github.com/28mm/blast-radius)
 
-## 🤝 Contributing
+## Contributing
 
 1. Fork the repository
 2. Create a feature branch
@@ -349,11 +386,11 @@ terragrunt run-all destroy
 4. Test thoroughly
 5. Submit a pull request
 
-## 📄 License
+## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
 
-## 🆘 Support
+## Support
 
 For issues or questions:
 1. Check the troubleshooting section above

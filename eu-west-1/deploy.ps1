@@ -9,8 +9,8 @@ param(
 # Set error action preference
 $ErrorActionPreference = "Stop"
 
-Write-Host "🚀 Starting Olechka AWS Environment Deployment" -ForegroundColor Green
-Write-Host "==============================================" -ForegroundColor Green
+Write-Host "Starting Olechka AWS Environment Deployment" -ForegroundColor Green
+Write-Host "==========================================" -ForegroundColor Green
 
 # Function to print colored output
 function Write-Status {
@@ -87,14 +87,14 @@ function Deploy-Infrastructure {
 function Show-Summary {
     Write-Status "Deployment Summary:"
     Write-Host "====================" -ForegroundColor Cyan
-    Write-Host "✅ VPC with public and private subnets" -ForegroundColor White
-    Write-Host "✅ Security groups configured" -ForegroundColor White
-    Write-Host "✅ EC2 instance with Apache web server" -ForegroundColor White
-    Write-Host "✅ RDS PostgreSQL database" -ForegroundColor White
-    Write-Host "✅ S3 buckets for data and logs" -ForegroundColor White
-    Write-Host "✅ Application Load Balancer" -ForegroundColor White
-    Write-Host "✅ IAM roles and policies" -ForegroundColor White
-    Write-Host "✅ WAF, Inspector, and Macie security services" -ForegroundColor White
+    Write-Host "VPC with public and private subnets" -ForegroundColor White
+    Write-Host "Security groups configured" -ForegroundColor White
+    Write-Host "EC2 instance with Apache web server" -ForegroundColor White
+    Write-Host "RDS PostgreSQL database" -ForegroundColor White
+    Write-Host "S3 buckets for data and logs" -ForegroundColor White
+    Write-Host "Application Load Balancer" -ForegroundColor White
+    Write-Host "IAM roles and policies" -ForegroundColor White
+    Write-Host "WAF, Inspector, and Macie security services" -ForegroundColor White
     Write-Host ""
     Write-Status "Your AWS environment is now ready!"
 }
