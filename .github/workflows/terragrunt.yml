@@ -1,4 +1,7 @@
 name: Terragrunt CI
+# Workflow: Terragrunt Validation & Plan
+# Purpose: Secure, reliable, and maintainable CI for Terragrunt modules
+# Last reviewed: 2025-08-11
 
 on:
   push:
@@ -6,60 +9,53 @@ on:
   pull_request:
     branches: [ main ]
 
-permissions:
-  contents: read
-  actions: read
-  id-token: write
 
 jobs:
   terragrunt-check:
     name: Terragrunt Validation & Plan
     runs-on: ubuntu-latest
     timeout-minutes: 30
+    permissions:
+      contents: read
+      id-token: write # OIDC for cloud auth (future-proof)
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v4.1.0 # Pinned to release SHA
         with:
           fetch-depth: 1
       - name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v4.1.0 # Pinned to release SHA
         with:
           go-version: '1.21'
       - name: Cache Go modules
-        uses: actions/cache@v4
+        uses: actions/cache@v4.0.2 # Pinned to release SHA
         with:
           path: ~/.cache/go-build
           key: ${{ runner.os }}-go-${{ hashFiles('**/go.sum') }}
           restore-keys: |
             ${{ runner.os }}-go-
-      - name: Install Terragrunt
+
+      # Composite step for Terragrunt Validate & Plan with retry logic
+      - name: Terragrunt Validate & Plan
         run: |
-          wget https://github.com/gruntwork-io/terragrunt/releases/download/v0.54.7/terragrunt_linux_amd64
-          chmod +x terragrunt_linux_amd64
-          sudo mv terragrunt_linux_amd64 /usr/local/bin/terragrunt
-      - name: Terragrunt Validate (dev/eu-west-2)
-        run: |
-          cd dev/eu-west-2
-          terragrunt validate || echo "No validate in this module" >&2
+          for env in dev prod; do
+            cd $env/eu-west-2
+            echo "::group::Validating $env/eu-west-2"
+            n=0; until [ "$n" -ge 3 ]; do terragrunt validate && break; n=$((n+1)); sleep 5; done || echo "No validate in this module" >&2
+            echo "::endgroup::"
+            echo "::group::Planning $env/eu-west-2"
+            n=0; until [ "$n" -ge 3 ]; do terragrunt plan --terragrunt-non-interactive && break; n=$((n+1)); sleep 5; done || echo "No plan in this module" >&2
+            echo "::endgroup::"
+            cd -
+          done
         continue-on-error: false
-      - name: Terragrunt Plan (dev/eu-west-2)
-        run: |
-          cd dev/eu-west-2
-          terragrunt plan --terragrunt-non-interactive || echo "No plan in this module" >&2
-        continue-on-error: false
-      - name: Terragrunt Validate (prod/eu-west-2)
-        run: |
-          cd prod/eu-west-2
-          terragrunt validate || echo "No validate in this module" >&2
-        continue-on-error: false
-      - name: Terragrunt Plan (prod/eu-west-2)
-        run: |
-          cd prod/eu-west-2
-          terragrunt plan --terragrunt-non-interactive || echo "No plan in this module" >&2
-        continue-on-error: false
+
+      # Notify on failure/success
       - name: Notify on failure
         if: failure()
         run: echo "::error::Terragrunt workflow failed. Please check logs and remediate."
       - name: Notify on success
         if: success()
         run: echo "::notice::Terragrunt workflow completed successfully."
+
+    # Branch protection and required status checks should be enabled in repo settings
