@@ -1,4 +1,4 @@
-# Terragrunt AWS Infrastructure for AI Tools
+# Terragrunt-Olechka / EU-Central-1, AP-Southeast-1
 
 [![Terragrunt Deploy](https://github.com/catherinevee/terragrunt-olechka/actions/workflows/terragrunt-deploy.yml/badge.svg)](https://github.com/catherinevee/terragrunt-olechka/actions/workflows/terragrunt-deploy.yml)
 [![Infrastructure Status](https://img.shields.io/badge/Infrastructure-Active-success)](https://github.com/catherinevee/terragrunt-olechka)

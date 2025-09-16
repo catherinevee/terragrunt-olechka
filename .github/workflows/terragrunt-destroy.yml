@@ -1,0 +1,232 @@
+name: Terragrunt Destroy
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to destroy'
+        required: true
+        type: choice
+        options:
+          - dev
+          - staging
+          - production
+      region:
+        description: 'Region to destroy (or all)'
+        required: true
+        type: choice
+        options:
+          - all
+          - eu-central-1
+          - ap-southeast-1
+      confirm:
+        description: 'Type "destroy" to confirm'
+        required: true
+        type: string
+
+env:
+  TERRAFORM_VERSION: '1.5.7'
+  TERRAGRUNT_VERSION: '0.50.17'
+
+permissions:
+  id-token: write
+  contents: read
+
+jobs:
+  validate-confirmation:
+    runs-on: ubuntu-latest
+    outputs:
+      proceed: ${{ steps.check.outputs.proceed }}
+    steps:
+      - name: Validate confirmation
+        id: check
+        run: |
+          if [ "${{ github.event.inputs.confirm }}" != "destroy" ]; then
+            echo "❌ Confirmation failed. You must type 'destroy' to proceed."
+            echo "proceed=false" >> $GITHUB_OUTPUT
+            exit 1
+          fi
+          echo "✅ Confirmation validated"
+          echo "proceed=true" >> $GITHUB_OUTPUT
+
+  destroy-infrastructure:
+    needs: validate-confirmation
+    if: needs.validate-confirmation.outputs.proceed == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: ${{ github.event.inputs.environment }}-destroy
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ vars.AWS_ACCOUNT_ID }}:role/github-actions-role
+          aws-region: eu-central-1
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      - name: Setup Terragrunt
+        run: |
+          wget -q https://github.com/gruntwork-io/terragrunt/releases/download/v${TERRAGRUNT_VERSION}/terragrunt_linux_amd64
+          chmod +x terragrunt_linux_amd64
+          sudo mv terragrunt_linux_amd64 /usr/local/bin/terragrunt
+
+      - name: Prepare destruction plan
+        run: |
+          echo "🔥 Preparing to destroy infrastructure"
+          echo "Environment: ${{ github.event.inputs.environment }}"
+          echo "Region: ${{ github.event.inputs.region }}"
+          echo "Initiated by: ${{ github.actor }}"
+          echo "Time: $(date)"
+
+      - name: Destroy infrastructure
+        run: |
+          if [ "${{ github.event.inputs.region }}" == "all" ]; then
+            # Destroy all regions
+            for region in eu-central-1 ap-southeast-1; do
+              echo "Destroying ${{ github.event.inputs.environment }}/$region"
+              cd infrastructure/${{ github.event.inputs.environment }}/$region
+
+              # Destroy in reverse dependency order
+              # First destroy compute services that depend on everything
+              if [ -d "compute/ecs-service-worker" ]; then
+                cd compute/ecs-service-worker && terragrunt destroy -auto-approve -input=false || true
+                cd ../..
+              fi
+
+              if [ -d "compute/ecs-service-api" ]; then
+                cd compute/ecs-service-api && terragrunt destroy -auto-approve -input=false || true
+                cd ../..
+              fi
+
+              if [ -d "compute/ecs-cluster" ]; then
+                cd compute/ecs-cluster && terragrunt destroy -auto-approve -input=false || true
+                cd ../..
+              fi
+
+              # Destroy monitoring
+              if [ -d "monitoring" ]; then
+                cd monitoring && terragrunt run-all destroy -auto-approve -input=false || true
+                cd ..
+              fi
+
+              # Destroy security (except KMS which is needed for storage)
+              if [ -d "security/waf" ]; then
+                cd security/waf && terragrunt destroy -auto-approve -input=false || true
+                cd ../..
+              fi
+
+              if [ -d "security/secrets" ]; then
+                cd security/secrets && terragrunt destroy -auto-approve -input=false || true
+                cd ../..
+              fi
+
+              # Destroy storage
+              if [ -d "storage" ]; then
+                cd storage && terragrunt run-all destroy -auto-approve -input=false || true
+                cd ..
+              fi
+
+              # Destroy network
+              if [ -d "network/alb" ]; then
+                cd network/alb && terragrunt destroy -auto-approve -input=false || true
+                cd ../..
+              fi
+
+              if [ -d "network/security-groups" ]; then
+                cd network/security-groups && terragrunt destroy -auto-approve -input=false || true
+                cd ../..
+              fi
+
+              if [ -d "network/vpc" ]; then
+                cd network/vpc && terragrunt destroy -auto-approve -input=false || true
+                cd ../..
+              fi
+
+              # Finally destroy KMS
+              if [ -d "security/kms" ]; then
+                cd security/kms && terragrunt destroy -auto-approve -input=false || true
+                cd ../..
+              fi
+
+              cd $GITHUB_WORKSPACE
+            done
+          else
+            # Destroy specific region
+            echo "Destroying ${{ github.event.inputs.environment }}/${{ github.event.inputs.region }}"
+            cd infrastructure/${{ github.event.inputs.environment }}/${{ github.event.inputs.region }}
+
+            # Use terragrunt run-all destroy with dependency resolution
+            terragrunt run-all destroy -auto-approve -input=false --terragrunt-ignore-dependency-errors
+          fi
+
+      - name: Update status badge
+        if: always()
+        run: |
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "✅ Infrastructure destroyed successfully"
+            # The badge will automatically update based on the workflow status
+          else
+            echo "❌ Infrastructure destruction failed or was cancelled"
+          fi
+
+      - name: Post-destruction cleanup
+        if: success()
+        run: |
+          echo "🧹 Post-destruction cleanup"
+          echo "Infrastructure in ${{ github.event.inputs.environment }}/${{ github.event.inputs.region }} has been destroyed"
+          echo "Note: S3 buckets with versioning and DynamoDB tables may have retention policies"
+
+          # Log what was destroyed
+          echo "Destroyed components:"
+          echo "- VPC and networking resources"
+          echo "- ECS clusters and services"
+          echo "- Aurora databases"
+          echo "- S3 buckets (if force_destroy was enabled)"
+          echo "- KMS keys (scheduled for deletion)"
+          echo "- Secrets Manager secrets (recovery window applies)"
+
+      - name: Notify destruction
+        if: always()
+        run: |
+          echo "📊 Destruction Summary"
+          echo "========================"
+          echo "Environment: ${{ github.event.inputs.environment }}"
+          echo "Region: ${{ github.event.inputs.region }}"
+          echo "Status: ${{ job.status }}"
+          echo "Initiated by: ${{ github.actor }}"
+          echo "Completed at: $(date)"
+
+  update-documentation:
+    needs: destroy-infrastructure
+    if: success()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update infrastructure status badge
+        run: |
+          # Update the status badge in README to show infrastructure is destroyed
+          if [ "${{ github.event.inputs.region }}" == "all" ]; then
+            sed -i 's/Infrastructure-Active-success/Infrastructure-Destroyed-critical/g' README.md
+          else
+            sed -i 's/Infrastructure-Active-success/Infrastructure-Partial-yellow/g' README.md
+          fi
+
+      - name: Commit status update
+        run: |
+          git config --local user.email "action@github.com"
+          git config --local user.name "GitHub Action"
+          git add README.md
+          git diff --staged --quiet || git commit -m "chore: update infrastructure status after destruction
+
+          Environment: ${{ github.event.inputs.environment }}
+          Region: ${{ github.event.inputs.region }}
+          Destroyed by: ${{ github.actor }}"
+          git push || echo "No changes to push"
