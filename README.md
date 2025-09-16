@@ -7,428 +7,448 @@
 
 Production-ready Terragrunt deployment architecture for AWS, optimized for AI tool workloads following the guidelines in CLAUDE.md.
 
-## 📊 Architecture Diagrams
+## Architecture Diagrams
 
 - **[Complete Architecture Diagrams](docs/architecture-diagram.md)** - Detailed infrastructure, CI/CD pipeline, and dependency diagrams
 - **[Overview Diagrams](docs/overview-diagram.md)** - High-level system architecture and workflow visualizations
 
-## Resource Map
+## Version Requirements
 
-```mermaid
-graph TB
-    subgraph Network Infrastructure
-        VPC[VPC] --> SUBNETS[Public & Private Subnets]
-        SUBNETS --> NAT[NAT Gateways]
-        SUBNETS --> IGW[Internet Gateway]
-        SG[Security Groups] --> SUBNETS
-    end
+| Component | Version | Notes |
+|-----------|---------|-------|
+| **Terraform** | >= 1.5.0 | Required for latest AWS provider features |
+| **Terragrunt** | >= 0.50.0 | Required for enhanced dependency management |
+| **AWS Provider** | Latest (auto-generated) | Provider version managed by Terraform |
+| **AWS CLI** | >= 2.0 | Required for local development and testing |
+| **GitHub CLI** | >= 2.0 | Required for repository management |
 
-    subgraph Load Balancing
-        ALB[Application Load Balancer]
-        TG[Target Groups]
-        WAF[Web Application Firewall]
-        ALB --> TG
-        WAF --> ALB
-    end
+## Project Overview
 
-    subgraph Compute Layer
-        ASG[Auto Scaling Group]
-        EC2[EC2 Instances]
-        ASG --> EC2
-        TG --> ASG
-    end
+This infrastructure implements a multi-region, multi-environment AWS architecture with:
 
-    subgraph Data Layer
-        RDS[RDS PostgreSQL]
-        S3[S3 Buckets]
-        S3LOGS[S3 Logs Bucket]
-    end
+- **Complete environment isolation** between dev, staging, and production
+- **Multi-region deployment** with eu-central-1 (primary) and ap-southeast-1 (secondary)
+- **ECS Fargate** for containerized AI workloads
+- **Aurora PostgreSQL** for persistent data storage
+- **Comprehensive security** with KMS encryption, Secrets Manager, and WAF
+- **Full observability** with CloudWatch and X-Ray tracing
+- **GitOps workflow** with GitHub Actions CI/CD pipeline
 
-    subgraph Security
-        IAM[IAM Roles]
-        INSP[Inspector]
-        MACIE[Macie]
-        KMS[KMS Keys]
-    end
+## Architecture Components
 
-    subgraph Monitoring
-        CW[CloudWatch]
-        LOGS[CloudWatch Logs]
-        METRICS[Custom Metrics]
-    end
+### Network Layer
+- **VPC**: Multi-AZ design with public, private, database, and cache subnets
+- **NAT Gateways**: Environment-specific configuration (1 for dev, 2 for staging, 3 for production)
+- **VPC Endpoints**: Cost-optimized access to AWS services
+- **Application Load Balancer**: With WAF protection and SSL/TLS termination
 
-    ALB --> EC2
-    EC2 --> RDS
-    EC2 --> S3
-    S3 --> S3LOGS
-    EC2 --> CW
-    RDS --> CW
-    KMS --> RDS
-    KMS --> S3
-```
+### Compute Layer
+- **ECS Fargate Cluster**: Serverless container orchestration
+- **ECS Services**: Auto-scaling API and Worker services
+- **Capacity Providers**: Mixed Fargate and Fargate Spot for cost optimization
+- **Service Discovery**: AWS Cloud Map integration
 
-### Resource Configuration Matrix
+### Storage Layer
+- **Aurora PostgreSQL**: Multi-AZ deployment with read replicas (production)
+- **S3 Buckets**: Artifact and model storage with lifecycle policies
+- **ElastiCache Redis**: Session management and caching
+- **Cross-region replication**: For critical data (production only)
 
-| Component | Dev | Staging | Prod |
-|-----------|-----|---------|------|
-| **VPC Configuration** |
-| CIDR Block | 10.0.0.0/16 | 172.16.0.0/16 | 192.168.0.0/16 |
-| Availability Zones | 3 | 3 | 3 |
-| NAT Gateways | 1 | 2 | 3 |
-| VPC Flow Logs | Basic | Enhanced | Full |
-| **Compute Resources** |
-| Instance Type | t3.small | t3.large | m5.xlarge |
-| Auto Scaling Min | 1 | 2 | 3 |
-| Auto Scaling Max | 3 | 6 | 10 |
-| **Database** |
-| RDS Instance Class | db.t3.small | db.t3.large | db.r5.2xlarge |
-| Multi-AZ | No | Yes | Yes |
-| Backup Retention | 7 days | 14 days | 30 days |
-| Performance Insights | 7 days | 14 days | 731 days |
-| **Storage** |
-| S3 Versioning | Enabled | Enabled | Enabled |
-| S3 Lifecycle Rules | 30 days | 60 days | 90 days |
-| S3 Replication | No | No | Yes |
-## AWS Backend Resource Prerequisites
+### Security Layer
+- **KMS**: Customer-managed encryption keys with rotation
+- **Secrets Manager**: Automated secret rotation for database credentials
+- **WAF**: Web Application Firewall with managed rules
+- **Security Groups**: Least-privilege network access controls
 
-This project requires the following AWS resources for Terragrunt remote state and locking:
-
-- **S3 Bucket**: `terragrunt-state-123456789012` (replace with your AWS Account ID)
-- **DynamoDB Table**: `terragrunt-state-locks-123456789012` (replace with your AWS Account ID)
-
-These must exist and be accessible by the CI/CD runner and any user running Terragrunt locally.
-
-### Required IAM Permissions
-
-The CI/CD runner and users must have the following IAM permissions:
-
-- `s3:ListBucket`, `s3:GetObject`, `s3:PutObject`, `s3:DeleteObject` on the state bucket
-- `dynamodb:GetItem`, `dynamodb:PutItem`, `dynamodb:DeleteItem`, `dynamodb:DescribeTable` on the lock table
-
-For OIDC-based authentication, ensure the GitHub Actions role has these permissions attached.
-
-See `.github/workflows/terragrunt.yml` for pre-flight resource checks.
-| **Security** |
-| WAF Rules | Basic | Enhanced | Advanced |
-| SSL Policy | TLS-1-2 | TLS-1-2 | TLS-1-2-2021 |
-| Network ACLs | Basic | Strict | Very Strict |
-| GuardDuty | Enabled | Enabled | Enabled |
-| **Monitoring** |
-| CloudWatch Retention | 30 days | 90 days | 365 days |
-| Metric Resolution | 5 min | 1 min | 1 min |
-| Detailed Monitoring | No | Yes | Yes |
-
-### Regional Deployment Status
-
-| Region | Dev | Staging | Prod |
-|--------|-----|---------|------|
-| eu-west-1 | Deployed | Deployed | Deployed |
-| eu-west-2 | Not deployed | Not deployed | Not deployed |
-
-### Environment-Specific Features
-
-#### Development (Dev)
-- Cost-optimized infrastructure
-- Basic monitoring and logging
-- Simplified security rules
-- Single NAT Gateway
-
-#### Staging
-- Production-like configuration
-- Enhanced monitoring
-- Strict security rules
-- Dual NAT Gateways
-
-#### Production (Prod)
-- High-availability configuration
-- Comprehensive monitoring
-- Maximum security controls
-- Triple NAT Gateways
-- Cross-region backup
-- Enhanced WAF protection
-
-## Architecture Overview
-
-The environment is designed as a multi-tier application with the following components:
-
-### Core Infrastructure
-- **VPC** with public and private subnets across 3 availability zones
-- **NAT Gateways** for private subnet internet access
-- **Security Groups** with least-privilege access rules
-- **Application Load Balancer** for traffic distribution
-
-### Application Layer
-- **EC2 Instances** running Apache web servers
-- **Auto Scaling Groups** for high availability
-- **Target Groups** for load balancer health checks
-
-### Data Layer
-- **RDS PostgreSQL** database with encryption and monitoring
-- **S3 Buckets** for application data and logs
-- **Lifecycle Policies** for cost optimization
-
-### Security & Compliance
-- **WAF** with AWS managed rules
-- **Inspector** for security assessments
-- **Macie** for data discovery and protection
-- **IAM Roles** with least privilege access
-- **Encryption** at rest and in transit
+### Monitoring & Observability
+- **CloudWatch**: Centralized logging and metrics
+- **X-Ray**: Distributed tracing for microservices
+- **CloudWatch Alarms**: Proactive alerting based on thresholds
+- **Performance Insights**: Database performance monitoring
 
 ## Project Structure
 
 ```
 terragrunt-olechka/
-├── common.hcl                           # Common variables and configuration
-├── terragrunt.hcl                       # Root Terragrunt configuration
-├── eu-west-1/                           # eu-west-1 region environment
-│   ├── README.md                        # Environment-specific documentation
-│   ├── deploy.sh                        # Bash deployment script
-│   ├── deploy.ps1                       # PowerShell deployment script
-│   ├── terragrunt.hcl                   # Environment root configuration
-│   ├── _envcommon/                      # Common environment configuration
-│   │   ├── provider.hcl                 # AWS provider configuration
-│   │   └── versions.hcl                 # Terraform and provider versions
-│   ├── network/                         # Networking components
-│   │   ├── vpc/                         # VPC and subnets
-│   │   ├── securitygroup/               # Security groups
-│   │   └── elb/                         # Application Load Balancer
-│   ├── compute/                         # Compute resources
-│   │   └── ec2/                         # EC2 instances
-│   ├── database/                        # Database resources
-│   │   └── rds/                         # RDS PostgreSQL
-│   ├── storage/                         # Storage resources
-│   │   ├── s3/                          # Application data bucket
-│   │   └── s3-logs/                     # Logs bucket
-│   ├── iam/                             # Identity and Access Management
-│   │   └── role/                        # IAM roles
-│   └── security/                        # Security services
-│       ├── waf/                         # Web Application Firewall
-│       ├── inspector/                   # Security Inspector
-│       └── macie/                       # Data discovery and protection
+├── .github/
+│   └── workflows/
+│       └── terragrunt-deploy.yml     # CI/CD pipeline
+├── infrastructure/
+│   ├── terragrunt.hcl               # Root configuration
+│   ├── _envcommon/                  # Shared environment configs
+│   │   ├── network.hcl
+│   │   ├── compute.hcl
+│   │   ├── storage.hcl
+│   │   └── monitoring.hcl
+│   ├── dev/
+│   │   ├── account.hcl
+│   │   ├── env.hcl
+│   │   ├── eu-central-1/           # Primary region
+│   │   │   ├── region.hcl
+│   │   │   ├── network/
+│   │   │   ├── compute/
+│   │   │   ├── storage/
+│   │   │   ├── security/
+│   │   │   └── monitoring/
+│   │   └── ap-southeast-1/         # Secondary region
+│   ├── staging/
+│   └── production/
+├── scripts/
+│   ├── setup-aws-backend.sh        # Backend initialization
+│   └── setup-github-secrets.sh     # GitHub configuration
+└── docs/
+    ├── architecture-diagram.md     # Architecture diagrams
+    └── overview-diagram.md         # System overview
 ```
 
-## Quick Start
+## Environment Configurations
+
+| Component | Development | Staging | Production |
+|-----------|------------|---------|------------|
+| **Network** |
+| VPC CIDR | 10.0.0.0/16 | 10.10.0.0/16 | 10.20.0.0/16 |
+| NAT Gateways | 1 (single) | 2 (multi-AZ) | 3 (one per AZ) |
+| VPC Flow Logs | 30 days | 30 days | 90 days |
+| **Compute** |
+| ECS CPU | 512 | 1024 | 2048 |
+| ECS Memory | 1024 MB | 2048 MB | 4096 MB |
+| Auto-scaling Min | 1 | 2 | 3 |
+| Auto-scaling Max | 5 | 10 | 20 |
+| Spot Instances | 80% | 20% | 0% |
+| **Database** |
+| Aurora Instance | db.t3.medium | db.r6g.large | db.r6g.xlarge |
+| Read Replicas | 0 | 0 | 2 |
+| Backup Retention | 7 days | 14 days | 30 days |
+| Deletion Protection | No | No | Yes |
+| **Storage** |
+| S3 Lifecycle | 30 days to IA | 30 days to IA | 90 days to IA |
+| S3 Replication | No | No | Cross-region |
+| **Monitoring** |
+| Log Retention | 30 days | 30 days | 90 days |
+| Detailed Monitoring | No | Yes | Yes |
+| Performance Insights | No | 7 days | 731 days |
+
+## Getting Started
 
 ### Prerequisites
 
-1. **AWS CLI** configured with appropriate credentials
-2. **Terragrunt** installed (version 0.84.0)
-3. **Terraform** installed (version 1.13.0)
-4. **AWS Account** with appropriate permissions
-5. **Python 3.7+** (for Blast Radius integration)
-6. **Docker** (optional, for containerized Blast Radius)
+1. **AWS Account**: With appropriate IAM permissions
+2. **AWS CLI**: Configured with credentials
+3. **Terraform**: Version >= 1.5.0
+4. **Terragrunt**: Version >= 0.50.0
+5. **GitHub CLI**: For repository management
+6. **GitHub Repository**: With Actions enabled
 
-### Configuration
+### Initial Setup
 
-1. **Update AWS Account ID**: Edit `common.hcl` and replace `123456789012` with your actual AWS account ID.
+#### 1. Configure AWS Backend
 
-2. **Create SSH Key Pair**: Create an SSH key pair named "olechka-key" in the AWS console.
+Run the backend setup script to create S3 bucket and DynamoDB table:
 
-3. **SSL Certificate**: Create or import an SSL certificate in AWS Certificate Manager and update the ARN in `eu-west-1/network/elb/terragrunt.hcl`.
+```bash
+bash scripts/setup-aws-backend.sh
+```
+
+This creates:
+- S3 bucket: `terraform-state-{ACCOUNT_ID}-{REGION}`
+- DynamoDB table: `terraform-locks-{ACCOUNT_ID}`
+
+#### 2. Configure GitHub Secrets
+
+Set up GitHub Actions secrets for CI/CD:
+
+```bash
+bash scripts/setup-github-secrets.sh
+```
+
+This configures:
+- `AWS_ACCOUNT_ID`: As repository variable
+- `AWS_ROLE_ARN`: For OIDC authentication
+- `AWS_DEFAULT_REGION`: Default deployment region
+
+#### 3. Create IAM Role for GitHub Actions
+
+Create an IAM role with OIDC trust policy:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Principal": {
+        "Federated": "arn:aws:iam::${ACCOUNT_ID}:oidc-provider/token.actions.githubusercontent.com"
+      },
+      "Action": "sts:AssumeRoleWithWebIdentity",
+      "Condition": {
+        "StringEquals": {
+          "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
+        },
+        "StringLike": {
+          "token.actions.githubusercontent.com:sub": "repo:catherinevee/terragrunt-olechka:*"
+        }
+      }
+    }
+  ]
+}
+```
 
 ### Deployment
 
-#### Option 1: Using Deployment Scripts
+#### Using GitHub Actions (Recommended)
 
-**Linux/macOS:**
-```bash
-cd eu-west-1
-chmod +x deploy.sh
-./deploy.sh
-```
-
-**Windows:**
-```powershell
-cd eu-west-1
-.\deploy.ps1
-```
-
-#### Option 2: Manual Deployment
+Push changes to trigger automatic deployment:
 
 ```bash
-# Navigate to the environment directory
-cd eu-west-1
+git add .
+git commit -m "Deploy infrastructure"
+git push origin main
+```
+
+The GitHub Actions workflow will:
+1. Detect changed Terragrunt configurations
+2. Validate and scan for security issues
+3. Generate and review Terraform plan
+4. Apply changes (with approval for production)
+
+#### Manual Deployment
+
+For local development and testing:
+
+```bash
+# Export AWS credentials
+export AWS_ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+export AWS_DEFAULT_REGION=eu-central-1
+
+# Navigate to environment
+cd infrastructure/dev/eu-central-1
 
 # Deploy all modules
 terragrunt run-all apply
 
-# Or deploy specific modules
+# Or deploy specific module
 cd network/vpc
-terragrunt apply
-
-cd ../compute/ec2
 terragrunt apply
 ```
 
-## Configuration Details
+## CI/CD Pipeline
 
-### Terraform Modules Used
+The GitHub Actions workflow provides:
 
-All modules are sourced from the Terraform Registry for reliability and maintenance:
+### Automated Validation
+- **Format checking**: `terragrunt fmt`
+- **Configuration validation**: `terragrunt validate`
+- **Security scanning**: Checkov
+- **Linting**: TFLint
+- **Cost estimation**: Infracost
 
-- **VPC**: `terraform-aws-modules/vpc/aws` (v5.8.1)
-- **Security Groups**: `terraform-aws-modules/security-group/aws` (v5.1.2)
-- **EC2**: `terraform-aws-modules/ec2-instance/aws` (v5.6.1)
-- **RDS**: `terraform-aws-modules/rds/aws` (v6.6.0)
-- **S3**: `terraform-aws-modules/s3-bucket/aws` (v4.1.2)
-- **ALB**: `terraform-aws-modules/alb/aws` (v9.9.2)
-- **WAF**: `terraform-aws-modules/waf/aws` (v1.0.0)
-- **IAM**: `terraform-aws-modules/iam/aws` (v5.30.0)
-
-### Provider Configuration
-
-- **AWS Provider**: Version 6.2.0
-- **Terraform**: Version 1.13.0
-- **Terragrunt**: Version 0.84.0
-- **Region**: eu-west-1 (Ireland)
+### Deployment Process
+1. **Change Detection**: Identifies modified Terragrunt configurations
+2. **Parallel Validation**: Validates all changed modules simultaneously
+3. **Plan Generation**: Creates Terraform execution plan
+4. **Review**: Comments plan summary on pull requests
+5. **Apply**: Deploys changes with environment-appropriate approvals
+6. **Notification**: Updates status via Slack (if configured)
 
 ### Security Features
+- **OIDC Authentication**: No static AWS credentials
+- **Least Privilege**: IAM role with minimal required permissions
+- **State Locking**: Prevents concurrent modifications
+- **Encrypted State**: S3 bucket encryption enabled
+- **Audit Trail**: All actions logged in CloudTrail
 
-- **Encryption at Rest**: All storage and databases encrypted with AWS KMS
-- **Encryption in Transit**: HTTPS/TLS for all web traffic
-- **Network Security**: Private subnets with controlled internet access
-- **Access Control**: IAM roles with least privilege principle
-- **Web Protection**: WAF with AWS managed security rules
-- **Security Monitoring**: Continuous security assessment with Inspector and Macie
+## Module Dependencies
 
-## Monitoring and Logging
+Terragrunt manages dependencies between modules automatically:
 
-### CloudWatch Integration
-- **Metrics**: Automatic collection for all AWS services
-- **Logs**: Centralized logging for applications and infrastructure
-- **Alarms**: Configurable alarms for critical metrics
+```
+VPC → Security Groups → ALB
+ ↓          ↓            ↓
+KMS → Secrets Manager → ECS Services
+ ↓                         ↓
+S3 Buckets ← Aurora Database
+```
 
-### RDS Performance Insights
-- **Database Monitoring**: Real-time database performance metrics
-- **Query Analysis**: Slow query identification and optimization
+Dependencies are defined using Terragrunt's `dependency` blocks with mock outputs for planning.
 
-### ALB Access Logs
-- **Traffic Analysis**: Detailed request logs for load balancer
-- **Security Monitoring**: Detection of suspicious traffic patterns
+## Monitoring and Alerting
+
+### CloudWatch Alarms
+
+| Metric | Development | Staging | Production |
+|--------|------------|---------|------------|
+| CPU High Threshold | 85% | 80% | 75% |
+| Memory High Threshold | 85% | 80% | 75% |
+| Error Rate Threshold | 10/min | 5/min | 2/min |
+| P99 Latency | 2000ms | 1500ms | 1000ms |
+| Database CPU | 80% | 75% | 70% |
+
+### Log Aggregation
+- Application logs: `/ecs/ai-tools-api`, `/ecs/ai-tools-worker`
+- Infrastructure logs: VPC Flow Logs, ALB Access Logs
+- Audit logs: CloudTrail, Config
+
+### Distributed Tracing
+- X-Ray enabled for all ECS services
+- Service map visualization
+- Performance bottleneck identification
 
 ## Cost Optimization
 
-### Resource Sizing
-- **t3.micro instances**: Cost-effective for development and testing
-- **db.t3.micro RDS**: Small database instances for non-production
-- **S3 Lifecycle Policies**: Automatic data tiering to reduce costs
+### Implemented Strategies
+- **Spot Instances**: Used in development (80% of capacity)
+- **VPC Endpoints**: Reduce NAT Gateway data transfer costs
+- **S3 Lifecycle Policies**: Automatic transition to cheaper storage classes
+- **Reserved Capacity**: Available for production baseline
+- **Auto-scaling**: Scale down during off-peak hours
 
-### Recommendations for Production
-- **Reserved Instances**: Purchase reserved instances for predictable workloads
-- **Auto Scaling**: Implement auto scaling based on demand
-- **RDS Multi-AZ**: Enable multi-AZ for high availability
-- **CloudFront**: Add CDN for global content delivery
+### Estimated Monthly Costs
+
+| Environment | Compute | Storage | Network | Total |
+|-------------|---------|---------|---------|-------|
+| Development | $150 | $50 | $30 | $230 |
+| Staging | $400 | $100 | $60 | $560 |
+| Production | $1,200 | $300 | $150 | $1,650 |
+
+*Note: Costs are estimates and vary based on usage*
+
+## Disaster Recovery
+
+### Backup Strategy
+- **RTO**: 1 hour
+- **RPO**: 15 minutes
+- **Aurora**: Automated backups with point-in-time recovery
+- **S3**: Cross-region replication for critical data
+- **Secrets**: Replicated to secondary region (production)
+
+### Recovery Procedures
+1. Trigger failover in Route 53
+2. Promote Aurora read replica in secondary region
+3. Update application configuration
+4. Verify service health
+
+## Security Best Practices
+
+### Implemented Controls
+- **Encryption**: All data encrypted at rest (KMS) and in transit (TLS)
+- **Network Segmentation**: Private subnets for compute and database
+- **Access Control**: IAM roles with least privilege
+- **Secret Management**: AWS Secrets Manager with rotation
+- **Vulnerability Scanning**: Container image scanning in ECR
+- **Web Protection**: WAF with AWS managed rules
+
+### Compliance
+- **Data Residency**: Configurable per environment
+- **Audit Logging**: CloudTrail enabled
+- **Configuration Compliance**: AWS Config rules
+- **Security Monitoring**: GuardDuty enabled (production)
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **Certificate ARN Error**
-   - Ensure SSL certificate exists in ACM
-   - Verify certificate ARN in ALB configuration
+**Terraform State Lock**
+```bash
+# List locks
+aws dynamodb scan --table-name terraform-locks-${AWS_ACCOUNT_ID}
 
-2. **Key Pair Not Found**
-   - Create SSH key pair named "olechka-key"
-   - Ensure key pair exists in eu-west-1 region
+# Force unlock (use with caution)
+terragrunt force-unlock <LOCK_ID>
+```
 
-3. **IAM Permissions**
-   - Verify AWS credentials have sufficient permissions
-   - Check CloudTrail for permission denied errors
+**OIDC Authentication Failure**
+- Verify IAM role trust policy
+- Check GitHub repository name in trust condition
+- Ensure `id-token: write` permission in workflow
 
-4. **VPC Dependency Issues**
-   - Deploy VPC first before other resources
-   - Verify subnet configurations
+**Dependency Errors**
+```bash
+# Refresh dependencies
+terragrunt refresh
+
+# Ignore dependency errors
+terragrunt apply --terragrunt-ignore-dependency-errors
+```
 
 ### Debug Commands
 
 ```bash
-# Check Terragrunt configuration
-terragrunt validate-inputs
+# Validate configuration
+terragrunt validate
 
-# View planned changes
-terragrunt plan
+# Show dependency graph
+terragrunt graph-dependencies
+
+# Plan with detailed output
+terragrunt plan -detailed-exitcode
 
 # Check AWS credentials
 aws sts get-caller-identity
-
-# View CloudWatch logs
-aws logs describe-log-groups
 ```
 
-## Cleanup
+## Maintenance
 
-To destroy the entire environment:
+### Regular Tasks
+
+**Daily**
+- Monitor CloudWatch dashboards
+- Review error logs
+
+**Weekly**
+- Check AWS Cost Explorer
+- Review security findings
+
+**Monthly**
+- Update container images
+- Rotate secrets
+- Review and update documentation
+
+**Quarterly**
+- Update Terraform modules
+- Security audit
+- Disaster recovery drill
+
+## Clean Up
+
+To destroy infrastructure:
 
 ```bash
-cd eu-west-1
+# Destroy specific environment
+cd infrastructure/dev/eu-central-1
 terragrunt run-all destroy
+
+# Confirm destruction
+terragrunt run-all destroy --terragrunt-non-interactive
 ```
 
-**Warning**: This will permanently delete all resources and data.
-
-## Blast Radius Integration
-
-This repository includes integration with [Blast Radius](https://github.com/28mm/blast-radius) for interactive Terraform dependency visualization.
-
-### Quick Start with Blast Radius
-
-```bash
-# Install dependencies
-pip install -r requirements.txt
-
-# Generate interactive diagrams
-make blast-export
-
-# Serve interactive diagrams
-make blast-serve
-
-# Use Docker (no local installation required)
-make blast-docker-all
-```
-
-### Features
-
-- **Interactive Visualizations**: Zoom, pan, search, and filter dependency graphs
-- **Multiple Environments**: Support for dev, staging, prod, and eu-west-1 environments
-- **Multiple Formats**: HTML, SVG, and PNG output formats
-- **Docker Support**: Run without local dependencies
-- **Web Interface**: Modern, responsive web interface
-
-### Documentation
-
-For detailed information about the Blast Radius integration, see:
-- [Blast Radius Integration Guide](BLAST_RADIUS_INTEGRATION.md)
-- [Interactive Diagrams](diagrams/) (generated after running `make blast-export`)
-
-## Additional Resources
-
-- [Version Requirements](VERSIONS.md) - Detailed version specifications and installation guide
-- [Terragrunt Documentation](https://terragrunt.gruntwork.io/)
-- [Terraform AWS Provider](https://registry.terraform.io/providers/hashicorp/aws/latest/docs)
-- [AWS Well-Architected Framework](https://aws.amazon.com/architecture/well-architected/)
-- [AWS Security Best Practices](https://aws.amazon.com/security/security-learning/)
-- [Blast Radius Documentation](https://github.com/28mm/blast-radius)
+**Warning**: This permanently deletes all resources and data.
 
 ## Contributing
 
 1. Fork the repository
 2. Create a feature branch
-3. Make your changes
-4. Test thoroughly
+3. Make changes and test locally
+4. Ensure all validations pass
 5. Submit a pull request
-
-## License
-
-This project is licensed under the MIT License - see the LICENSE file for details.
+6. Wait for CI/CD validation
+7. Request review
 
 ## Support
 
 For issues or questions:
-1. Check the troubleshooting section above
-2. Review AWS service documentation
-3. Check CloudWatch logs and metrics
-4. Verify IAM permissions and policies
+1. Check the [Architecture Diagrams](docs/architecture-diagram.md)
+2. Review [Troubleshooting](#troubleshooting) section
+3. Check GitHub Actions logs
+4. Open an issue with details
 
----
+## License
 
-**Note**: This infrastructure is designed for educational and development purposes. For production use, please review and adjust security configurations, resource sizing, and backup strategies according to your specific requirements.
+This project is licensed under the MIT License.
+
+## References
+
+- [Terragrunt Documentation](https://terragrunt.gruntwork.io/)
+- [Terraform AWS Provider](https://registry.terraform.io/providers/hashicorp/aws/latest)
+- [AWS Well-Architected Framework](https://aws.amazon.com/architecture/well-architected/)
+- [GitHub Actions Documentation](https://docs.github.com/en/actions)
+- [OIDC with GitHub Actions](https://docs.github.com/en/actions/deployment/security-hardening-your-deployments)
