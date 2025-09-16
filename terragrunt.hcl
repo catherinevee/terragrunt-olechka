@@ -17,7 +17,7 @@ remote_state {
   backend = "s3"
   generate = {
     path      = "backend.tf"
-    if_exists = "overwrite"
+    if_exists = "overwrite_terragrunt"
   }
   config = {
     bucket         = "terragrunt-state-${local.aws_account_id}"
@@ -32,7 +32,7 @@ remote_state {
 # Generate common provider configuration
 generate "provider" {
   path      = "provider.tf"
-  if_exists = "overwrite"
+  if_exists = "overwrite_terragrunt"
   contents  = <<EOF
 provider "aws" {
   region = "eu-west-1"
@@ -70,7 +70,7 @@ EOF
 # Generate versions configuration
 generate "versions" {
   path      = "versions.tf"
-  if_exists = "overwrite"
+  if_exists = "overwrite_terragrunt"
   contents  = <<EOF
 terraform {
   required_version = "1.13.0"

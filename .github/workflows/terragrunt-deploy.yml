@@ -1,0 +1,399 @@
+name: Terragrunt Deploy
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'infrastructure/**'
+      - '.github/workflows/terragrunt-deploy.yml'
+  pull_request:
+    branches:
+      - main
+      - develop
+    paths:
+      - 'infrastructure/**'
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: 'Environment to deploy'
+        required: true
+        type: choice
+        options:
+          - dev
+          - staging
+          - production
+      region:
+        description: 'Region to deploy'
+        required: true
+        type: choice
+        options:
+          - eu-central-1
+          - ap-southeast-1
+
+env:
+  TERRAFORM_VERSION: '1.5.7'
+  TERRAGRUNT_VERSION: '0.50.17'
+  AWS_DEFAULT_REGION: 'eu-central-1'
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.set-matrix.outputs.matrix }}
+      has-changes: ${{ steps.set-matrix.outputs.has-changes }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Detect changed directories
+        id: set-matrix
+        run: |
+          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
+            # Manual dispatch - deploy specific environment/region
+            CHANGED_DIRS=$(find infrastructure/${{ github.event.inputs.environment }}/${{ github.event.inputs.region }} -name "terragrunt.hcl" -type f | xargs -I {} dirname {} | sort -u | jq -R -s -c 'split("\n")[:-1]')
+          else
+            # Automatic trigger - detect changes
+            CHANGED_DIRS=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | \
+              grep -E "infrastructure/.*/terragrunt.hcl$" | \
+              xargs -I {} dirname {} | \
+              sort -u | \
+              jq -R -s -c 'split("\n")[:-1]')
+          fi
+
+          if [ "$CHANGED_DIRS" == "[]" ] || [ -z "$CHANGED_DIRS" ]; then
+            echo "has-changes=false" >> $GITHUB_OUTPUT
+            echo "matrix={\"include\":[]}" >> $GITHUB_OUTPUT
+          else
+            echo "has-changes=true" >> $GITHUB_OUTPUT
+            MATRIX=$(echo $CHANGED_DIRS | jq -c '{include: [.[] | {directory: .}]}')
+            echo "matrix=$MATRIX" >> $GITHUB_OUTPUT
+            echo "Detected changes in: $CHANGED_DIRS"
+          fi
+
+  validate:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.has-changes == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: ${{ fromJson(needs.detect-changes.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Determine environment
+        id: determine-env
+        run: |
+          if [[ "${{ matrix.directory }}" == *"production"* ]]; then
+            echo "environment=production" >> $GITHUB_OUTPUT
+            echo "aws_account=345678901234" >> $GITHUB_OUTPUT
+          elif [[ "${{ matrix.directory }}" == *"staging"* ]]; then
+            echo "environment=staging" >> $GITHUB_OUTPUT
+            echo "aws_account=234567890123" >> $GITHUB_OUTPUT
+          else
+            echo "environment=dev" >> $GITHUB_OUTPUT
+            echo "aws_account=123456789012" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ steps.determine-env.outputs.aws_account }}:role/github-actions-role
+          aws-region: ${{ env.AWS_DEFAULT_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      - name: Setup Terragrunt
+        run: |
+          wget -q https://github.com/gruntwork-io/terragrunt/releases/download/v${TERRAGRUNT_VERSION}/terragrunt_linux_amd64
+          chmod +x terragrunt_linux_amd64
+          sudo mv terragrunt_linux_amd64 /usr/local/bin/terragrunt
+
+      - name: Terragrunt Format Check
+        run: |
+          cd ${{ matrix.directory }}
+          terragrunt fmt -check -diff
+
+      - name: Terragrunt Validate
+        run: |
+          cd ${{ matrix.directory }}
+          terragrunt validate
+
+      - name: TFLint
+        uses: terraform-linters/setup-tflint@v4
+        with:
+          tflint_version: latest
+
+      - name: Run TFLint
+        run: |
+          cd ${{ matrix.directory }}
+          tflint --init
+          tflint
+
+      - name: Checkov Security Scan
+        uses: bridgecrewio/checkov-action@master
+        with:
+          directory: ${{ matrix.directory }}
+          framework: terraform
+          quiet: false
+          soft_fail: ${{ steps.determine-env.outputs.environment == 'dev' }}
+          skip_check: CKV_AWS_18,CKV_AWS_21
+
+      - name: Infracost
+        uses: infracost/actions/setup@v2
+        with:
+          api-key: ${{ secrets.INFRACOST_API_KEY }}
+
+      - name: Generate Infracost cost estimate
+        run: |
+          cd ${{ matrix.directory }}
+          infracost breakdown --path . \
+            --format json \
+            --out-file /tmp/infracost.json
+
+      - name: Post Infracost comment
+        if: github.event_name == 'pull_request'
+        run: |
+          infracost comment github --path=/tmp/infracost.json \
+            --repo=$GITHUB_REPOSITORY \
+            --pull-request=${{ github.event.pull_request.number }} \
+            --github-token=${{ secrets.GITHUB_TOKEN }} \
+            --behavior=update
+
+  plan:
+    needs: [detect-changes, validate]
+    if: needs.detect-changes.outputs.has-changes == 'true'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: ${{ fromJson(needs.detect-changes.outputs.matrix) }}
+    environment:
+      name: ${{ contains(matrix.directory, 'production') && 'production' || contains(matrix.directory, 'staging') && 'staging' || 'development' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Determine environment
+        id: determine-env
+        run: |
+          if [[ "${{ matrix.directory }}" == *"production"* ]]; then
+            echo "environment=production" >> $GITHUB_OUTPUT
+            echo "aws_account=345678901234" >> $GITHUB_OUTPUT
+          elif [[ "${{ matrix.directory }}" == *"staging"* ]]; then
+            echo "environment=staging" >> $GITHUB_OUTPUT
+            echo "aws_account=234567890123" >> $GITHUB_OUTPUT
+          else
+            echo "environment=dev" >> $GITHUB_OUTPUT
+            echo "aws_account=123456789012" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ steps.determine-env.outputs.aws_account }}:role/github-actions-role
+          aws-region: ${{ env.AWS_DEFAULT_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      - name: Setup Terragrunt
+        run: |
+          wget -q https://github.com/gruntwork-io/terragrunt/releases/download/v${TERRAGRUNT_VERSION}/terragrunt_linux_amd64
+          chmod +x terragrunt_linux_amd64
+          sudo mv terragrunt_linux_amd64 /usr/local/bin/terragrunt
+
+      - name: Terragrunt Init
+        run: |
+          cd ${{ matrix.directory }}
+          terragrunt init
+
+      - name: Terragrunt Plan
+        id: plan
+        run: |
+          cd ${{ matrix.directory }}
+          terragrunt plan -out=tfplan -input=false -no-color | tee plan_output.txt
+
+          # Extract plan summary
+          echo "## Plan Summary for \`${{ matrix.directory }}\`" >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+          tail -20 plan_output.txt >> $GITHUB_STEP_SUMMARY
+          echo '```' >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload Plan
+        uses: actions/upload-artifact@v3
+        with:
+          name: tfplan-${{ hashFiles(matrix.directory) }}
+          path: |
+            ${{ matrix.directory }}/tfplan
+            ${{ matrix.directory }}/plan_output.txt
+
+      - name: Comment PR with Plan
+        if: github.event_name == 'pull_request'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const planOutput = fs.readFileSync('${{ matrix.directory }}/plan_output.txt', 'utf8');
+
+            // Extract summary from plan output
+            const summaryMatch = planOutput.match(/Plan: (\d+) to add, (\d+) to change, (\d+) to destroy/);
+            const summary = summaryMatch
+              ? `Plan: **${summaryMatch[1]}** to add, **${summaryMatch[2]}** to change, **${summaryMatch[3]}** to destroy`
+              : 'Plan generated successfully';
+
+            const output = `#### Terraform Plan for \`${{ matrix.directory }}\`
+
+            ${summary}
+
+            <details><summary>Show Plan Output</summary>
+
+            \`\`\`terraform
+            ${planOutput.slice(-3000)}
+            \`\`\`
+
+            </details>
+
+            *Pushed by: @${{ github.actor }}, Action: \`${{ github.event_name }}\`*`;
+
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: output
+            });
+
+  apply:
+    needs: [detect-changes, plan]
+    if: |
+      needs.detect-changes.outputs.has-changes == 'true' &&
+      github.ref == 'refs/heads/main' &&
+      github.event_name == 'push'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix: ${{ fromJson(needs.detect-changes.outputs.matrix) }}
+      max-parallel: 1
+    environment:
+      name: ${{ contains(matrix.directory, 'production') && 'production' || contains(matrix.directory, 'staging') && 'staging' || 'development' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Determine environment
+        id: determine-env
+        run: |
+          if [[ "${{ matrix.directory }}" == *"production"* ]]; then
+            echo "environment=production" >> $GITHUB_OUTPUT
+            echo "aws_account=345678901234" >> $GITHUB_OUTPUT
+          elif [[ "${{ matrix.directory }}" == *"staging"* ]]; then
+            echo "environment=staging" >> $GITHUB_OUTPUT
+            echo "aws_account=234567890123" >> $GITHUB_OUTPUT
+          else
+            echo "environment=dev" >> $GITHUB_OUTPUT
+            echo "aws_account=123456789012" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ steps.determine-env.outputs.aws_account }}:role/github-actions-role
+          aws-region: ${{ env.AWS_DEFAULT_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: ${{ env.TERRAFORM_VERSION }}
+
+      - name: Setup Terragrunt
+        run: |
+          wget -q https://github.com/gruntwork-io/terragrunt/releases/download/v${TERRAGRUNT_VERSION}/terragrunt_linux_amd64
+          chmod +x terragrunt_linux_amd64
+          sudo mv terragrunt_linux_amd64 /usr/local/bin/terragrunt
+
+      - name: Download Plan
+        uses: actions/download-artifact@v3
+        with:
+          name: tfplan-${{ hashFiles(matrix.directory) }}
+          path: ${{ matrix.directory }}
+
+      - name: Terragrunt Apply
+        run: |
+          cd ${{ matrix.directory }}
+          terragrunt apply tfplan -auto-approve -input=false
+
+      - name: Slack Notification
+        if: always()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          text: |
+            Deployment ${{ job.status }} for ${{ matrix.directory }}
+            Environment: ${{ steps.determine-env.outputs.environment }}
+            Commit: ${{ github.sha }}
+            Author: ${{ github.actor }}
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+
+  drift-detection:
+    runs-on: ubuntu-latest
+    if: github.event.schedule == '0 2 * * *'
+    strategy:
+      matrix:
+        environment: [dev, staging, production]
+        region: [eu-central-1, ap-southeast-1]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Determine AWS account
+        id: determine-account
+        run: |
+          if [ "${{ matrix.environment }}" == "production" ]; then
+            echo "aws_account=345678901234" >> $GITHUB_OUTPUT
+          elif [ "${{ matrix.environment }}" == "staging" ]; then
+            echo "aws_account=234567890123" >> $GITHUB_OUTPUT
+          else
+            echo "aws_account=123456789012" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: arn:aws:iam::${{ steps.determine-account.outputs.aws_account }}:role/github-actions-role
+          aws-region: ${{ matrix.region }}
+
+      - name: Setup tools
+        run: |
+          wget -q https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip
+          unzip terraform_${TERRAFORM_VERSION}_linux_amd64.zip
+          sudo mv terraform /usr/local/bin/
+
+          wget -q https://github.com/gruntwork-io/terragrunt/releases/download/v${TERRAGRUNT_VERSION}/terragrunt_linux_amd64
+          chmod +x terragrunt_linux_amd64
+          sudo mv terragrunt_linux_amd64 /usr/local/bin/terragrunt
+
+      - name: Detect drift
+        run: |
+          DRIFT_DETECTED=false
+
+          find infrastructure/${{ matrix.environment }}/${{ matrix.region }} -name "terragrunt.hcl" -type f | while read -r config; do
+            dir=$(dirname "$config")
+            echo "Checking drift in $dir"
+            cd "$dir"
+
+            terragrunt init
+            terragrunt plan -detailed-exitcode || exit_code=$?
+
+            if [ "$exit_code" == "2" ]; then
+              echo "::warning::Drift detected in $dir"
+              DRIFT_DETECTED=true
+            fi
+
+            cd - > /dev/null
+          done
+
+          if [ "$DRIFT_DETECTED" == "true" ]; then
+            echo "Drift detected in ${{ matrix.environment }}/${{ matrix.region }}"
+            # Send notification
+          fi

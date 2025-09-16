@@ -269,6 +269,7 @@ All modules are sourced from the Terraform Registry for reliability and maintena
 
 - **AWS Provider**: Version 6.2.0
 - **Terraform**: Version 1.13.0
+- **Terragrunt**: Version 0.84.0
 - **Region**: eu-west-1 (Ireland)
 
 ### Security Features
@@ -391,6 +392,7 @@ For detailed information about the Blast Radius integration, see:
 
 ## Additional Resources
 
+- [Version Requirements](VERSIONS.md) - Detailed version specifications and installation guide
 - [Terragrunt Documentation](https://terragrunt.gruntwork.io/)
 - [Terraform AWS Provider](https://registry.terraform.io/providers/hashicorp/aws/latest/docs)
 - [AWS Well-Architected Framework](https://aws.amazon.com/architecture/well-architected/)
