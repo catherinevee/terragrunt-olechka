@@ -1,6 +1,16 @@
-# Olechka AWS Environment - Terragrunt Project
+# Terragrunt AWS Infrastructure for AI Tools
 
-This project contains a complete AWS environment infrastructure defined using Terragrunt and Terraform modules from the Terraform Registry.
+[![Terragrunt Deploy](https://github.com/catherinevee/terragrunt-olechka/actions/workflows/terragrunt-deploy.yml/badge.svg)](https://github.com/catherinevee/terragrunt-olechka/actions/workflows/terragrunt-deploy.yml)
+[![Infrastructure Status](https://img.shields.io/badge/Infrastructure-Active-success)](https://github.com/catherinevee/terragrunt-olechka)
+[![Terraform](https://img.shields.io/badge/Terraform-%3E%3D1.5.0-623ce4)](https://www.terraform.io/)
+[![Terragrunt](https://img.shields.io/badge/Terragrunt-%3E%3D0.50.0-1f77b4)](https://terragrunt.gruntwork.io/)
+
+Production-ready Terragrunt deployment architecture for AWS, optimized for AI tool workloads following the guidelines in CLAUDE.md.
+
+## 📊 Architecture Diagrams
+
+- **[Complete Architecture Diagrams](docs/architecture-diagram.md)** - Detailed infrastructure, CI/CD pipeline, and dependency diagrams
+- **[Overview Diagrams](docs/overview-diagram.md)** - High-level system architecture and workflow visualizations
 
 ## Resource Map
 
