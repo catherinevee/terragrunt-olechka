@@ -1,11 +1,13 @@
 # Terragrunt-Olechka / EU-Central-1, AP-Southeast-1
 
 [![Terragrunt Deploy](https://github.com/catherinevee/terragrunt-olechka/actions/workflows/terragrunt-deploy.yml/badge.svg)](https://github.com/catherinevee/terragrunt-olechka/actions/workflows/terragrunt-deploy.yml)
-[![Infrastructure Status](https://img.shields.io/badge/Infrastructure-Active-success)](https://github.com/catherinevee/terragrunt-olechka)
+[![Infrastructure Status](https://img.shields.io/badge/Infrastructure-Template-blue)](https://github.com/catherinevee/terragrunt-olechka)
 [![Terraform](https://img.shields.io/badge/Terraform-%3E%3D1.5.0-623ce4)](https://www.terraform.io/)
 [![Terragrunt](https://img.shields.io/badge/Terragrunt-%3E%3D0.50.0-1f77b4)](https://terragrunt.gruntwork.io/)
 
 Production-ready Terragrunt deployment architecture for AWS, optimized for AI tool workloads following the guidelines in CLAUDE.md.
+
+> **Project Status**: This is a complete infrastructure-as-code template ready for deployment. The infrastructure is not currently deployed. To deploy, follow the setup instructions below to configure AWS credentials and IAM roles.
 
 ## Architecture Diagrams
 
