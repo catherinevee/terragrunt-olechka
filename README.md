@@ -2,8 +2,10 @@
 
 [![Terragrunt Deploy](https://github.com/catherinevee/terragrunt-olechka/actions/workflows/terragrunt-deploy.yml/badge.svg)](https://github.com/catherinevee/terragrunt-olechka/actions/workflows/terragrunt-deploy.yml)
 [![Infrastructure Status](https://img.shields.io/badge/Infrastructure-Template-blue)](https://github.com/catherinevee/terragrunt-olechka)
-[![Terraform](https://img.shields.io/badge/Terraform-%3E%3D1.5.0-623ce4)](https://www.terraform.io/)
-[![Terragrunt](https://img.shields.io/badge/Terragrunt-%3E%3D0.50.0-1f77b4)](https://terragrunt.gruntwork.io/)
+[![Terraform](https://img.shields.io/badge/Terraform-v1.5.7-623ce4)](https://www.terraform.io/)
+[![Terragrunt](https://img.shields.io/badge/Terragrunt-v0.50.17-1f77b4)](https://terragrunt.gruntwork.io/)
+[![AWS Provider](https://img.shields.io/badge/AWS_Provider-v5.31.0-FF9900)](https://registry.terraform.io/providers/hashicorp/aws/5.31.0)
+[![License](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 Production-ready Terragrunt deployment architecture for AWS, optimized for AI tool workloads following the guidelines in CLAUDE.md.
 
@@ -16,13 +18,24 @@ Production-ready Terragrunt deployment architecture for AWS, optimized for AI to
 
 ## Version Requirements
 
-| Component | Version | Notes |
-|-----------|---------|-------|
-| **Terraform** | >= 1.5.0 | Required for latest AWS provider features |
-| **Terragrunt** | >= 0.50.0 | Required for enhanced dependency management |
-| **AWS Provider** | Latest (auto-generated) | Provider version managed by Terraform |
-| **AWS CLI** | >= 2.0 | Required for local development and testing |
-| **GitHub CLI** | >= 2.0 | Required for repository management |
+| Component | Version | Release Date | Notes |
+|-----------|---------|--------------|-------|
+| **Terraform** | 1.5.7 | Aug 2, 2023 | Pinned for stability and compatibility |
+| **Terragrunt** | 0.50.17 | Sep 8, 2023 | Pinned for consistent deployments |
+| **AWS Provider** | 5.31.0 | Dec 14, 2023 | Pinned for API stability |
+| **AWS CLI** | >= 2.0 | Latest | Required for local development |
+| **GitHub CLI** | >= 2.0 | Latest | Required for repository management |
+
+> **Version Policy**: All infrastructure components use exact version pinning to ensure consistent deployments across environments. Updates are tested in development before promoting to production.
+
+### Version Compatibility Matrix
+
+| Terraform | Terragrunt | AWS Provider | Status |
+|-----------|------------|--------------|---------|
+| 1.5.7 | 0.50.17 | 5.31.0 | ✅ Current (Tested) |
+| 1.5.x | 0.50.x | 5.30.x - 5.31.x | ✅ Compatible |
+| 1.6.x | 0.51.x | 5.32.x+ | ⚠️ Not Tested |
+| < 1.5.0 | < 0.50.0 | < 5.30.0 | ❌ Not Supported |
 
 ## Project Overview
 
@@ -260,6 +273,23 @@ The GitHub Actions workflow provides:
 - **Audit Trail**: All actions logged in CloudTrail
 
 ## Module Dependencies
+
+### Terraform Registry Modules
+
+All infrastructure modules are sourced from the official Terraform Registry with pinned versions:
+
+| Module | Version | Source |
+|--------|---------|---------|
+| VPC | 5.1.2 | terraform-aws-modules/vpc/aws |
+| Security Group | 5.1.0 | terraform-aws-modules/security-group/aws |
+| ALB | 8.7.0 | terraform-aws-modules/alb/aws |
+| ECS | 5.2.2 | terraform-aws-modules/ecs/aws |
+| RDS Aurora | 8.3.1 | terraform-aws-modules/rds-aurora/aws |
+| S3 Bucket | 3.15.1 | terraform-aws-modules/s3-bucket/aws |
+| KMS | 2.0.1 | terraform-aws-modules/kms/aws |
+| Secrets Manager | 1.1.1 | terraform-aws-modules/secrets-manager/aws |
+
+### Dependency Graph
 
 Terragrunt manages dependencies between modules automatically:
 

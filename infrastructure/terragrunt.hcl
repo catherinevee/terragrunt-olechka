@@ -31,11 +31,22 @@ remote_state {
   }
 }
 
-# Generate provider configuration
+# Generate provider configuration with version constraint
 generate "provider" {
   path      = "provider.tf"
   if_exists = "overwrite"
   contents  = <<EOF
+terraform {
+  required_version = "= 1.5.7"
+
+  required_providers {
+    aws = {
+      source  = "hashicorp/aws"
+      version = "= 5.31.0"
+    }
+  }
+}
+
 provider "aws" {
   region = "${local.region}"
 
@@ -52,8 +63,8 @@ EOF
 }
 
 # Version constraints
-terraform_version_constraint  = ">= 1.5.0"
-terragrunt_version_constraint = ">= 0.50.0"
+terraform_version_constraint  = "= 1.5.7"
+terragrunt_version_constraint = "= 0.50.17"
 
 # Retry configuration for handling transient errors
 retry_configuration {
